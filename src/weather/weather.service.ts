@@ -4,6 +4,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { WideEvent } from '../observability/wide-event.interface';
 import { ForecastDayDto } from './dto/forecast-day.dto';
 import {
   WeatherApiErrorResponse,
@@ -22,7 +23,7 @@ const UPSTREAM_ERROR_MESSAGE =
 export class WeatherService {
   constructor(private readonly configService: ConfigService) {}
 
-  async getForecast(city: string): Promise<ForecastDayDto[]> {
+  async getForecast(city: string, event: WideEvent): Promise<ForecastDayDto[]> {
     const url = new URL(WEATHER_API_URL);
     url.searchParams.set(
       'key',
@@ -42,6 +43,7 @@ export class WeatherService {
       const errorBody = (await response
         .json()
         .catch(() => null)) as WeatherApiErrorResponse | null;
+      event.upstreamResponse = errorBody;
 
       if (errorBody?.error.code === WEATHER_API_ERROR_CODE_LOCATION_NOT_FOUND) {
         throw new NotFoundException(`No weather data found for "${city}"`);
@@ -51,6 +53,7 @@ export class WeatherService {
     }
 
     const data = (await response.json()) as WeatherApiForecastResponse;
+    event.upstreamResponse = data;
 
     return data.forecast.forecastday.map((forecastDay) => ({
       date: forecastDay.date,

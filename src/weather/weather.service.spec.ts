@@ -3,6 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { WeatherService } from './weather.service';
 import { WEATHER_API_URL } from './weather.constants';
+import { WideEvent } from '../observability/wide-event.interface';
+
+function createEvent(): WideEvent {
+  return {
+    timestamp: '2026-08-19T15:00:00.000Z',
+    userType: 'guest',
+    method: 'GET',
+    endpoint: '/weather?city=Madrid',
+    statusCode: 200,
+  };
+}
 
 describe('WeatherService', () => {
   let service: WeatherService;
@@ -36,7 +47,7 @@ describe('WeatherService', () => {
       json: () => Promise.resolve({ forecast: { forecastday: [] } }),
     } as Response);
 
-    await service.getForecast('Madrid');
+    await service.getForecast('Madrid', createEvent());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const calledUrl = fetchMock.mock.calls[0][0] as URL;
@@ -46,31 +57,32 @@ describe('WeatherService', () => {
     expect(calledUrl.searchParams.get('days')).toBe('4');
   });
 
-  it('maps the WeatherAPI response to ForecastDayDto[], dropping unlisted fields', async () => {
+  it('maps the WeatherAPI response to ForecastDayDto[], dropping unlisted fields, and records the upstream response on the event', async () => {
+    const rawResponse = {
+      location: { name: 'Madrid', country: 'Spain' },
+      forecast: {
+        forecastday: [
+          {
+            date: '2026-08-19',
+            astro: { sunrise: '06:00 AM' },
+            day: {
+              maxtemp_c: 30,
+              mintemp_c: 18,
+              avgtemp_c: 24,
+              condition: { text: 'Sunny', icon: '//cdn/sunny.png' },
+            },
+          },
+        ],
+      },
+    };
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      json: () =>
-        Promise.resolve({
-          location: { name: 'Madrid', country: 'Spain' },
-          forecast: {
-            forecastday: [
-              {
-                date: '2026-08-19',
-                astro: { sunrise: '06:00 AM' },
-                day: {
-                  maxtemp_c: 30,
-                  mintemp_c: 18,
-                  avgtemp_c: 24,
-                  condition: { text: 'Sunny', icon: '//cdn/sunny.png' },
-                },
-              },
-            ],
-          },
-        }),
+      json: () => Promise.resolve(rawResponse),
     } as Response);
 
-    const result = await service.getForecast('Madrid');
+    const event = createEvent();
+    const result = await service.getForecast('Madrid', event);
 
     expect(result).toEqual([
       {
@@ -81,21 +93,24 @@ describe('WeatherService', () => {
         conditionIcon: '//cdn/sunny.png',
       },
     ]);
+    expect(event.upstreamResponse).toEqual(rawResponse);
   });
 
-  it('throws NotFoundException when WeatherAPI reports no matching location', async () => {
+  it('throws NotFoundException when WeatherAPI reports no matching location, and records the error body on the event', async () => {
+    const errorBody = {
+      error: { code: 1006, message: 'No matching location found.' },
+    };
     fetchMock.mockResolvedValue({
       ok: false,
       status: 400,
-      json: () =>
-        Promise.resolve({
-          error: { code: 1006, message: 'No matching location found.' },
-        }),
+      json: () => Promise.resolve(errorBody),
     } as Response);
 
-    await expect(service.getForecast('Nowhereland')).rejects.toThrow(
+    const event = createEvent();
+    await expect(service.getForecast('Nowhereland', event)).rejects.toThrow(
       NotFoundException,
     );
+    expect(event.upstreamResponse).toEqual(errorBody);
   });
 
   it('throws ServiceUnavailableException for other WeatherAPI errors', async () => {
@@ -108,7 +123,7 @@ describe('WeatherService', () => {
         }),
     } as Response);
 
-    await expect(service.getForecast('Madrid')).rejects.toThrow(
+    await expect(service.getForecast('Madrid', createEvent())).rejects.toThrow(
       ServiceUnavailableException,
     );
   });
@@ -120,7 +135,7 @@ describe('WeatherService', () => {
       json: () => Promise.reject(new Error('not json')),
     } as Response);
 
-    await expect(service.getForecast('Madrid')).rejects.toThrow(
+    await expect(service.getForecast('Madrid', createEvent())).rejects.toThrow(
       ServiceUnavailableException,
     );
   });
@@ -128,7 +143,7 @@ describe('WeatherService', () => {
   it('throws ServiceUnavailableException when the request itself fails', async () => {
     fetchMock.mockRejectedValue(new Error('network down'));
 
-    await expect(service.getForecast('Madrid')).rejects.toThrow(
+    await expect(service.getForecast('Madrid', createEvent())).rejects.toThrow(
       ServiceUnavailableException,
     );
   });
