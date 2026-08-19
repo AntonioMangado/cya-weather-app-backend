@@ -44,7 +44,11 @@ describe('WeatherService', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ forecast: { forecastday: [] } }),
+      json: () =>
+        Promise.resolve({
+          location: { name: 'Madrid', country: 'Spain' },
+          forecast: { forecastday: [] },
+        }),
     } as Response);
 
     await service.getForecast('Madrid', createEvent());
@@ -57,7 +61,7 @@ describe('WeatherService', () => {
     expect(calledUrl.searchParams.get('days')).toBe('4');
   });
 
-  it('maps the WeatherAPI response to ForecastDayDto[], dropping unlisted fields, and records the upstream response on the event', async () => {
+  it('maps the WeatherAPI response to a WeatherResponseDto, dropping unlisted fields, and records the upstream response on the event', async () => {
     const rawResponse = {
       location: { name: 'Madrid', country: 'Spain' },
       forecast: {
@@ -84,15 +88,18 @@ describe('WeatherService', () => {
     const event = createEvent();
     const result = await service.getForecast('Madrid', event);
 
-    expect(result).toEqual([
-      {
-        date: '2026-08-19',
-        maxTempC: 30,
-        minTempC: 18,
-        conditionText: 'Sunny',
-        conditionIcon: '//cdn/sunny.png',
-      },
-    ]);
+    expect(result).toEqual({
+      location: { city: 'Madrid', countryInitials: 'SP' },
+      forecast: [
+        {
+          date: '2026-08-19',
+          maxTempC: 30,
+          minTempC: 18,
+          conditionText: 'Sunny',
+          conditionIcon: '//cdn/sunny.png',
+        },
+      ],
+    });
     expect(event.upstreamResponse).toEqual(rawResponse);
   });
 

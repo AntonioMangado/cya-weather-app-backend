@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WideEvent } from '../observability/wide-event.interface';
-import { ForecastDayDto } from './dto/forecast-day.dto';
+import { WeatherResponseDto } from './dto/weather-response.dto';
 import {
   WeatherApiErrorResponse,
   WeatherApiForecastResponse,
@@ -23,7 +23,10 @@ const UPSTREAM_ERROR_MESSAGE =
 export class WeatherService {
   constructor(private readonly configService: ConfigService) {}
 
-  async getForecast(city: string, event: WideEvent): Promise<ForecastDayDto[]> {
+  async getForecast(
+    city: string,
+    event: WideEvent,
+  ): Promise<WeatherResponseDto> {
     const url = new URL(WEATHER_API_URL);
     url.searchParams.set(
       'key',
@@ -55,12 +58,18 @@ export class WeatherService {
     const data = (await response.json()) as WeatherApiForecastResponse;
     event.upstreamResponse = data;
 
-    return data.forecast.forecastday.map((forecastDay) => ({
-      date: forecastDay.date,
-      maxTempC: forecastDay.day.maxtemp_c,
-      minTempC: forecastDay.day.mintemp_c,
-      conditionText: forecastDay.day.condition.text,
-      conditionIcon: forecastDay.day.condition.icon,
-    }));
+    return {
+      location: {
+        city: data.location.name,
+        countryInitials: data.location.country.slice(0, 2).toUpperCase(),
+      },
+      forecast: data.forecast.forecastday.map((forecastDay) => ({
+        date: forecastDay.date,
+        maxTempC: forecastDay.day.maxtemp_c,
+        minTempC: forecastDay.day.mintemp_c,
+        conditionText: forecastDay.day.condition.text,
+        conditionIcon: forecastDay.day.condition.icon,
+      })),
+    };
   }
 }

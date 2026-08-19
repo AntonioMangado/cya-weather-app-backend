@@ -49,8 +49,11 @@ describe('WeatherController', () => {
   });
 
   it('delegates to WeatherService.getForecast and records a wide event on success', async () => {
-    const forecast = [{ date: '2026-08-19' }];
-    weatherService.getForecast.mockResolvedValue(forecast);
+    const weather = {
+      location: { city: 'Madrid', countryInitials: 'SP' },
+      forecast: [{ date: '2026-08-19' }],
+    };
+    weatherService.getForecast.mockResolvedValue(weather);
 
     const result = await controller.getForecast('Madrid', createRequest());
 
@@ -58,11 +61,11 @@ describe('WeatherController', () => {
       'Madrid',
       expect.objectContaining({ userType: 'guest', method: 'GET' }),
     );
-    expect(result).toEqual(forecast);
+    expect(result).toEqual(weather);
     expect(wideEventService.record).toHaveBeenCalledTimes(1);
     expect(wideEventService.record.mock.calls[0][0]).toMatchObject({
       statusCode: 200,
-      responseToClient: forecast,
+      responseToClient: weather,
     });
   });
 

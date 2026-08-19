@@ -9,7 +9,7 @@ import {
 import type { Request } from 'express';
 import { WideEventService } from '../observability/wide-event.service';
 import { WideEvent } from '../observability/wide-event.interface';
-import { ForecastDayDto } from './dto/forecast-day.dto';
+import { WeatherResponseDto } from './dto/weather-response.dto';
 import { WeatherService } from './weather.service';
 
 @Controller('weather')
@@ -23,7 +23,7 @@ export class WeatherController {
   async getForecast(
     @Query('city') city: string | undefined,
     @Req() request: Request,
-  ): Promise<ForecastDayDto[]> {
+  ): Promise<WeatherResponseDto> {
     const event: WideEvent = {
       timestamp: new Date().toISOString(),
       userType: 'guest',
@@ -37,10 +37,10 @@ export class WeatherController {
         throw new BadRequestException('city query parameter is required');
       }
 
-      const forecast = await this.weatherService.getForecast(city, event);
-      event.responseToClient = forecast;
+      const weather = await this.weatherService.getForecast(city, event);
+      event.responseToClient = weather;
 
-      return forecast;
+      return weather;
     } catch (error) {
       event.statusCode =
         error instanceof HttpException ? error.getStatus() : 500;

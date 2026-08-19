@@ -38,6 +38,7 @@ describe('Weather (e2e)', () => {
       status: 200,
       json: () =>
         Promise.resolve({
+          location: { name: 'Madrid', country: 'Spain' },
           forecast: {
             forecastday: [
               {

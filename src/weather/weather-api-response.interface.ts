@@ -1,4 +1,8 @@
 export interface WeatherApiForecastResponse {
+  location: {
+    name: string;
+    country: string;
+  };
   forecast: {
     forecastday: WeatherApiForecastDay[];
   };
