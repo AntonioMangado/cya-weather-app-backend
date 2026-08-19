@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { WeatherService } from './weather.service';
 import { WEATHER_API_URL } from './weather.constants';
 
@@ -82,9 +83,53 @@ describe('WeatherService', () => {
     ]);
   });
 
-  it('throws when the WeatherAPI response is not ok', async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 400 } as Response);
+  it('throws NotFoundException when WeatherAPI reports no matching location', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: () =>
+        Promise.resolve({
+          error: { code: 1006, message: 'No matching location found.' },
+        }),
+    } as Response);
 
-    await expect(service.getForecast('Nowhereland')).rejects.toThrow();
+    await expect(service.getForecast('Nowhereland')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('throws ServiceUnavailableException for other WeatherAPI errors', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () =>
+        Promise.resolve({
+          error: { code: 2006, message: 'API key is invalid.' },
+        }),
+    } as Response);
+
+    await expect(service.getForecast('Madrid')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('throws ServiceUnavailableException when the error body cannot be parsed', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.reject(new Error('not json')),
+    } as Response);
+
+    await expect(service.getForecast('Madrid')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('throws ServiceUnavailableException when the request itself fails', async () => {
+    fetchMock.mockRejectedValue(new Error('network down'));
+
+    await expect(service.getForecast('Madrid')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
   });
 });

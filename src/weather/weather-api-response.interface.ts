@@ -4,6 +4,13 @@ export interface WeatherApiForecastResponse {
   };
 }
 
+export interface WeatherApiErrorResponse {
+  error: {
+    code: number;
+    message: string;
+  };
+}
+
 interface WeatherApiForecastDay {
   date: string;
   day: {

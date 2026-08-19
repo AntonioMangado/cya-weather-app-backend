@@ -1,8 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ForecastDayDto } from './dto/forecast-day.dto';
-import { WeatherApiForecastResponse } from './weather-api-response.interface';
-import { FORECAST_DAYS, WEATHER_API_URL } from './weather.constants';
+import {
+  WeatherApiErrorResponse,
+  WeatherApiForecastResponse,
+} from './weather-api-response.interface';
+import {
+  FORECAST_DAYS,
+  WEATHER_API_ERROR_CODE_LOCATION_NOT_FOUND,
+  WEATHER_API_URL,
+} from './weather.constants';
+
+const UPSTREAM_ERROR_MESSAGE =
+  "Couldn't process the weather request, try again later";
 
 @Injectable()
 export class WeatherService {
@@ -17,12 +31,23 @@ export class WeatherService {
     url.searchParams.set('q', city);
     url.searchParams.set('days', String(FORECAST_DAYS));
 
-    const response = await fetch(url);
+    let response: Response;
+    try {
+      response = await fetch(url);
+    } catch {
+      throw new ServiceUnavailableException(UPSTREAM_ERROR_MESSAGE);
+    }
 
     if (!response.ok) {
-      throw new Error(
-        `WeatherAPI request failed with status ${response.status}`,
-      );
+      const errorBody = (await response
+        .json()
+        .catch(() => null)) as WeatherApiErrorResponse | null;
+
+      if (errorBody?.error.code === WEATHER_API_ERROR_CODE_LOCATION_NOT_FOUND) {
+        throw new NotFoundException(`No weather data found for "${city}"`);
+      }
+
+      throw new ServiceUnavailableException(UPSTREAM_ERROR_MESSAGE);
     }
 
     const data = (await response.json()) as WeatherApiForecastResponse;
