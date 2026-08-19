@@ -32,4 +32,12 @@ export default tseslint.config(
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },
+  {
+    files: ['**/*.spec.ts'],
+    rules: {
+      // Jest mock method references (e.g. `expect(store.record)`) are safe —
+      // they don't rely on `this` — but the rule can't tell the difference.
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
 );
